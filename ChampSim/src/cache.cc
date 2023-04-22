@@ -21,22 +21,6 @@ void CACHE::handle_fill()
       assert(0);
 #endif
 
-      // ######################### inclusive ######################################
-#ifdef INCLUSIVE
-    if (cache_type == !IS_L1I && cache_type == !IS_L1D)
-    {
-      if (cache_type == IS_LLC)
-      {
-        ooo_cpu[fill_cpu].L2C.invalidate_entry(MSHR.entry[MSHR.next_fill_index].address);
-      }
-      else if (cache_type == IS_L2C)
-      {
-        ooo_cpu[fill_cpu].L1I.invalidate_entry(MSHR.entry[MSHR.next_fill_index].address);
-        ooo_cpu[fill_cpu].L1D.invalidate_entry(MSHR.entry[MSHR.next_fill_index].address);
-      }
-    }
-#endif
-
     uint32_t mshr_index = MSHR.next_fill_index;
 
     // find victim
@@ -185,6 +169,30 @@ void CACHE::handle_fill()
       sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
       sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
 
+      // ######################### inclusive ######################################
+#ifdef INCLUSIVE
+      // cout << "here4" << endl;
+      if (block[set][way].valid)
+      {
+        if (cache_type != IS_L1I && cache_type != IS_L1D)
+        {
+          // cout << "here3" << endl;
+          if (cache_type == IS_LLC)
+          {
+            // cout << "here1" << endl;
+            ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+            // cout << "###" << endl;
+          }
+          else if (cache_type == IS_L2C)
+          {
+            // cout << "here2" << endl;
+            ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+            ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+          }
+        }
+      }
+#endif
+
       // ################### exclusive #################################
 #ifdef EXCLUSIVE
       // if (cache_type != IS_LLC && block[set][way].valid)
@@ -215,34 +223,37 @@ void CACHE::handle_fill()
 
       if (lower_level)
       {
-        if (lower_level->get_occupancy(0, block[set][way].address) == lower_level->get_size(0, block[set][way].address))
+        if (block[set][way].valid && !block[set][way].dirty)
         {
+          if (lower_level->get_occupancy(2, block[set][way].address) == lower_level->get_size(2, block[set][way].address))
+          {
 
-          // lower level WQ is full, cannot replace this victim
-          do_fill = 0;
-          lower_level->MSHR.FULL++;
-          STALL[MSHR.entry[mshr_index].type]++;
+            // lower level WQ is full, cannot replace this victim
+            do_fill = 0;
+            lower_level->increment_WQ_FULL(block[set][way].address);
+            STALL[MSHR.entry[mshr_index].type]++;
 
-          DP(if (warmup_complete[fill_cpu]) {
+            DP(if (warmup_complete[fill_cpu]) {
                     cout << "[" << NAME << "] " << __func__ << "do_fill: " << +do_fill;
                     cout << " lower level wq is full!" << " fill_addr: " << hex << MSHR.entry[mshr_index].address;
                     cout << " victim_addr: " << block[set][way].tag << dec << endl; });
-        }
-        else
-        {
-          PACKET writeback_packet;
+          }
+          else
+          {
+            PACKET writeback_packet;
 
-          writeback_packet.fill_level = fill_level << 1;
-          writeback_packet.cpu = fill_cpu;
-          writeback_packet.address = block[set][way].address;
-          writeback_packet.full_addr = block[set][way].full_addr;
-          writeback_packet.data = block[set][way].data;
-          writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
-          writeback_packet.ip = 0; // writeback does not have ip
-          writeback_packet.type = LOAD;
-          writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+            writeback_packet.fill_level = fill_level << 1;
+            writeback_packet.cpu = fill_cpu;
+            writeback_packet.address = block[set][way].address;
+            writeback_packet.full_addr = block[set][way].full_addr;
+            writeback_packet.data = block[set][way].data;
+            writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+            writeback_packet.ip = 0; // writeback does not have ip
+            writeback_packet.type = WRITEBACK;
+            writeback_packet.event_cycle = current_core_cycle[fill_cpu];
 
-          ((CACHE*)lower_level)->add_mshr(&writeback_packet);
+            ((CACHE *)lower_level)->add_wq(&writeback_packet);
+          }
         }
       }
 
