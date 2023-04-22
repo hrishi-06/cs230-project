@@ -181,6 +181,8 @@ void CACHE::handle_fill()
           {
             // cout << "here1" << endl;
             ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+            ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+            ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
             // cout << "###" << endl;
           }
           else if (cache_type == IS_L2C)
