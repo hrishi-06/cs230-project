@@ -1,0 +1,162 @@
+#include "cache.h"
+#include <vector>
+#include <functional>
+#include <utility>
+
+#define BANK_LENGTH 1000
+#define ROUND_MAX 100
+#define SCORE_MAX 31
+#define BAD_SCORE 0
+#define NUM_OFFSETS 28
+#define DELAY_QUEUE_SIZE 15
+#define DELAY 60
+
+#define LOW_SCORE 20
+#define BW 16
+#define MSHR_THRESHOLD 12
+#define UPPER_LIMIT 0
+#define LOWER_LIMIT 0
+
+uint64_t hash1(uint64_t addr)
+{
+    static std::hash<uint64_t> h1;
+
+    return h1(2 * addr + 7) % BANK_LENGTH;
+}
+
+uint64_t hash2(uint64_t addr)
+{
+    static std::hash<uint64_t> h2;
+
+    return h2(3 * addr + 1) % BANK_LENGTH;
+}
+
+void CACHE::l2c_prefetcher_initialize() { cout << "CPU " << cpu << " L2C next line prefetcher" << endl; }
+
+uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
+{
+    uint64_t temp_addr = addr;
+    addr = addr >> LOG2_BLOCK_SIZE;
+    static std::vector<uint64_t> bank1(BANK_LENGTH);
+    static std::vector<uint64_t> bank2(BANK_LENGTH);
+    static std::vector<int32_t> offsets{-20, -18, -16, -15, -12, -10, -9, -8, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20};
+    static std::vector<uint32_t> offset_freq(NUM_OFFSETS, 0);
+    static uint32_t num_accesses = 0;
+    static uint32_t num_round = 0;
+
+	uint32_t last_fetch_cycle = -1;
+	uint32_t rate = 0;	
+
+	static vector<pair<uint64_t, uint64_t>> delay_queue (DELAY_QUEUE_SIZE);
+	static uint32_t curr_dq_size = 0;
+	static uint32_t head = 0;
+	
+    static int32_t curr_offset = -1;
+    static uint32_t current_index = 0;
+
+    static uint8_t on_off = 0;
+
+	uint32_t set = get_set(addr);
+	uint32_t way = get_way(addr, set);
+
+	if(cache_hit && !block[set][way].prefetch){
+		return metadata_in;	
+	}
+
+    uint32_t index1 = hash1(addr);
+    uint32_t index2 = hash2(addr);
+
+    num_accesses++;
+
+    int32_t offset = offsets.at(current_index);
+
+    uint32_t ind1 = hash1(uint64_t(int64_t(addr) - offset));
+    uint32_t ind2 = hash2(uint64_t(int64_t(addr) - offset));
+
+    if (int64_t(bank1.at(ind1)) == int64_t(addr) - offset || int64_t(bank2.at(ind2)) == int64_t(addr) - offset)
+    {
+        offset_freq.at(current_index)++;
+    }
+
+    current_index = (current_index + 1) % NUM_OFFSETS;
+
+    uint32_t max_freq = 0;
+    uint32_t indx;
+
+    for (uint32_t i = 0; i < NUM_OFFSETS; ++i)
+    {
+        if (offset_freq.at(i) >= max_freq)
+        {
+            max_freq = offset_freq.at(i);
+            indx = i;
+        }
+    }
+
+    if (num_accesses == NUM_OFFSETS)
+    {   
+        num_accesses = 0;
+        num_round++;
+    }
+
+    if (max_freq >= SCORE_MAX || num_round >= ROUND_MAX)
+    {
+        curr_offset = offsets.at(indx);
+        offset_freq.assign(NUM_OFFSETS, 0);
+        num_accesses = 0;
+        num_round = 0;
+    }
+	
+	on_off = 1;
+    if(max_freq <= BAD_SCORE){
+        on_off = 0;
+    }
+
+    bank1.at(index1) = addr;
+	
+	uint64_t current_cycle = current_core_cycle[0];
+
+	if(curr_dq_size < DELAY_QUEUE_SIZE){
+		delay_queue.at(head) = make_pair(addr, current_cycle);
+		head = (head+1)%DELAY_QUEUE_SIZE;
+		curr_dq_size++;
+	}		
+	
+	uint32_t h = head;
+	uint32_t sz = curr_dq_size;
+	
+    for(uint32_t i=0; i<sz; ++i){
+		if(current_cycle - delay_queue.at((i+h)%DELAY_QUEUE_SIZE).second >= DELAY){
+			uint32_t indd = hash2(delay_queue.at((i+h)%DELAY_QUEUE_SIZE).first);
+			bank2.at(indd) = hash2(delay_queue.at((i+h)%DELAY_QUEUE_SIZE).first);
+
+			head = (head+1)%DELAY_QUEUE_SIZE;
+			curr_dq_size --;
+		}	
+	}	
+
+    if (type != LOAD)
+        return metadata_in;
+
+    uint64_t pf_addr = ((temp_addr >> LOG2_BLOCK_SIZE) + 1) << LOG2_BLOCK_SIZE;
+
+    DP(if (warmup_complete[cpu]) {
+        cout << "[" << NAME << "] " << __func__ << hex << " base_cl: " << (addr >> LOG2_BLOCK_SIZE);
+        cout << " pf_cl: " << (pf_addr >> LOG2_BLOCK_SIZE) << " ip: " << ip << " cache_hit: " << +cache_hit
+             << " type: " << +type << endl;
+    });
+	
+    if (on_off)
+    {
+        prefetch_line(ip, temp_addr, pf_addr, FILL_L2, 0);
+    }
+
+    return metadata_in;
+}
+
+uint32_t CACHE::l2c_prefetcher_cache_fill(
+    uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+    return metadata_in;
+}
+
+void CACHE::l2c_prefetcher_final_stats() { cout << "CPU " << cpu << " L2C next line prefetcher final stats" << endl; }
