@@ -171,27 +171,233 @@ void CACHE::handle_fill()
 
       // ######################### inclusive ######################################
 #ifdef INCLUSIVE
+      // cout << "in inclusive section" << endl;
       // cout << "here4" << endl;
-      if (block[set][way].valid)
-      {
+      if (block[set][way].valid && !block[set][way].dirty)
+      { 
+        // cout << "inside first if" << endl;
         if (cache_type != IS_L1I && cache_type != IS_L1D)
-        {
+        { 
+          // cout << "inside second if" << endl;
+
           // cout << "here3" << endl;
           if (cache_type == IS_LLC)
           {
             // cout << "here1" << endl;
-            ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
-            ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
-            ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+            // ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+            // ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+            // ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
             // cout << "###" << endl;
+
+            // cout << "inside third if" << endl;
+
+            uint32_t up_set = ooo_cpu[fill_cpu].L1I.get_set(block[set][way].address);
+            uint32_t up_way = ooo_cpu[fill_cpu].L1I.get_way(block[set][way].address, up_set);
+            PACKET writeback_packet;
+            uint8_t flag = 0;
+
+            if (up_way < L1I_WAY && up_way >= 0)
+            { 
+              // cout << "inside fourth if" << endl;
+              if (ooo_cpu[fill_cpu].L1I.block[up_set][up_way].dirty)
+              { 
+                // cout << "here1" << endl;
+                flag = 1;
+                writeback_packet.fill_level = fill_level << 1;
+                writeback_packet.cpu = fill_cpu;
+                writeback_packet.address = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].address;
+                writeback_packet.full_addr = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].full_addr;
+                writeback_packet.data = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].data;
+                writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+                writeback_packet.ip = 0; // writeback does not have ip
+                writeback_packet.type = WRITEBACK;
+                writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+
+                ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+                // cout << "here1 ##" << endl;
+              }
+            }
+
+            up_set = ooo_cpu[fill_cpu].L1D.get_set(block[set][way].address);
+            up_way = ooo_cpu[fill_cpu].L1D.get_way(block[set][way].address, up_set);
+
+            if (up_way < L1D_WAY && up_way >= 0 && flag == 0)
+            { 
+              // cout << "inside fifth if" << endl;
+              if (ooo_cpu[fill_cpu].L1D.block[up_set][up_way].dirty)
+              { 
+                // cout << "here2" << endl;
+                flag = 1;
+                writeback_packet.fill_level = fill_level << 1;
+                writeback_packet.cpu = fill_cpu;
+                writeback_packet.address = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].address;
+                writeback_packet.full_addr = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].full_addr;
+                writeback_packet.data = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].data;
+                writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+                writeback_packet.ip = 0; // writeback does not have ip
+                writeback_packet.type = WRITEBACK;
+                writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+
+                ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+                // cout << "here2 ##" << endl;
+              }
+            }
+
+            up_set = ooo_cpu[fill_cpu].L2C.get_set(block[set][way].address);
+            up_way = ooo_cpu[fill_cpu].L2C.get_way(block[set][way].address, up_set);
+
+            if (up_way < L2C_WAY && up_way >= 0 && flag == 0)
+            { 
+              // cout << "inside sixth if" << endl;
+
+              if (ooo_cpu[fill_cpu].L2C.block[up_set][up_way].dirty)
+              { 
+                // cout << "here3" << endl;
+                flag = 1;
+                writeback_packet.fill_level = fill_level << 1;
+                writeback_packet.cpu = fill_cpu;
+                writeback_packet.address = ooo_cpu[fill_cpu].L2C.block[up_set][up_way].address;
+                writeback_packet.full_addr = ooo_cpu[fill_cpu].L2C.block[up_set][up_way].full_addr;
+                writeback_packet.data = ooo_cpu[fill_cpu].L2C.block[up_set][up_way].data;
+                writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+                writeback_packet.ip = 0; // writeback does not have ip
+                writeback_packet.type = WRITEBACK;
+                writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+
+                ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+                // cout << "here3 ##" << endl;
+              }
+            }
+
+            if (flag)
+            {
+              if (lower_level)
+              {
+                if (lower_level->get_occupancy(2, block[set][way].address) == lower_level->get_size(2, block[set][way].address))
+                {
+
+                  // lower level WQ is full, cannot replace this victim
+                  do_fill = 0;
+                  lower_level->increment_WQ_FULL(block[set][way].address);
+                  STALL[MSHR.entry[mshr_index].type]++;
+
+                  DP(if (warmup_complete[fill_cpu]) {
+                    cout << "[" << NAME << "] " << __func__ << "do_fill: " << +do_fill;
+                    cout << " lower level wq is full!" << " fill_addr: " << hex << MSHR.entry[mshr_index].address;
+                    cout << " victim_addr: " << block[set][way].tag << dec << endl; });
+                }
+                else
+                {
+                  lower_level->add_wq(&writeback_packet);
+                }
+              }
+            }
           }
           else if (cache_type == IS_L2C)
           {
             // cout << "here2" << endl;
-            ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
-            ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+            // ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+            // ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+            uint32_t up_set = ooo_cpu[fill_cpu].L1I.get_set(block[set][way].address);
+            uint32_t up_way = ooo_cpu[fill_cpu].L1I.get_way(block[set][way].address, up_set);
+            PACKET writeback_packet;
+            uint8_t flag = 0;
+
+            if (up_way < L1I_WAY && up_way >= 0)
+            { 
+              // cout << "inside 7th if" << endl;
+
+              if (ooo_cpu[fill_cpu].L1I.block[up_set][up_way].dirty)
+              { 
+                // cout << "here4" << endl;
+                flag = 1;
+                writeback_packet.fill_level = fill_level << 1;
+                writeback_packet.cpu = fill_cpu;
+                writeback_packet.address = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].address;
+                writeback_packet.full_addr = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].full_addr;
+                writeback_packet.data = ooo_cpu[fill_cpu].L1I.block[up_set][up_way].data;
+                writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+                writeback_packet.ip = 0; // writeback does not have ip
+                writeback_packet.type = WRITEBACK;
+                writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+
+                ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+                // cout << "here4 ##" << endl;
+              }
+            }
+
+            up_set = ooo_cpu[fill_cpu].L1D.get_set(block[set][way].address);
+            up_way = ooo_cpu[fill_cpu].L1D.get_way(block[set][way].address, up_set);
+
+            if (up_way < L1D_WAY && up_way >= 0 && flag == 0)
+            { 
+              // cout << "inside 8th if" << endl;
+
+              if (ooo_cpu[fill_cpu].L1D.block[up_set][up_way].dirty)
+              { 
+                // cout << "here5" << endl;
+                flag = 1;
+                writeback_packet.fill_level = fill_level << 1;
+                writeback_packet.cpu = fill_cpu;
+                writeback_packet.address = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].address;
+                writeback_packet.full_addr = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].full_addr;
+                writeback_packet.data = ooo_cpu[fill_cpu].L1D.block[up_set][up_way].data;
+                writeback_packet.instr_id = MSHR.entry[mshr_index].instr_id;
+                writeback_packet.ip = 0; // writeback does not have ip
+                writeback_packet.type = WRITEBACK;
+                writeback_packet.event_cycle = current_core_cycle[fill_cpu];
+
+                ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+                ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
+
+                // cout << "here5 ##" << endl;
+              }
+            }
+
+            if (flag)
+            {
+              if (lower_level)
+              {
+                if (lower_level->get_occupancy(2, block[set][way].address) == lower_level->get_size(2, block[set][way].address))
+                {
+
+                  // lower level WQ is full, cannot replace this victim
+                  do_fill = 0;
+                  lower_level->increment_WQ_FULL(block[set][way].address);
+                  STALL[MSHR.entry[mshr_index].type]++;
+
+                  DP(if (warmup_complete[fill_cpu]) {
+                    cout << "[" << NAME << "] " << __func__ << "do_fill: " << +do_fill;
+                    cout << " lower level wq is full!" << " fill_addr: " << hex << MSHR.entry[mshr_index].address;
+                    cout << " victim_addr: " << block[set][way].tag << dec << endl; });
+                }
+                else
+                {
+                  lower_level->add_wq(&writeback_packet);
+                }
+              }
+            }
           }
         }
+      }
+      else if (block[set][way].dirty && block[set][way].valid) {
+        ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
+        ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
+        ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
       }
 #endif
 
