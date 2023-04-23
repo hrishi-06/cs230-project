@@ -174,10 +174,10 @@ void CACHE::handle_fill()
       // cout << "in inclusive section" << endl;
       // cout << "here4" << endl;
       if (block[set][way].valid && !block[set][way].dirty)
-      { 
+      {
         // cout << "inside first if" << endl;
         if (cache_type != IS_L1I && cache_type != IS_L1D)
-        { 
+        {
           // cout << "inside second if" << endl;
 
           // cout << "here3" << endl;
@@ -197,10 +197,10 @@ void CACHE::handle_fill()
             uint8_t flag = 0;
 
             if (up_way < L1I_WAY && up_way >= 0)
-            { 
+            {
               // cout << "inside fourth if" << endl;
               if (ooo_cpu[fill_cpu].L1I.block[up_set][up_way].dirty)
-              { 
+              {
                 // cout << "here1" << endl;
                 flag = 1;
                 writeback_packet.fill_level = fill_level << 1;
@@ -225,10 +225,10 @@ void CACHE::handle_fill()
             up_way = ooo_cpu[fill_cpu].L1D.get_way(block[set][way].address, up_set);
 
             if (up_way < L1D_WAY && up_way >= 0 && flag == 0)
-            { 
+            {
               // cout << "inside fifth if" << endl;
               if (ooo_cpu[fill_cpu].L1D.block[up_set][up_way].dirty)
-              { 
+              {
                 // cout << "here2" << endl;
                 flag = 1;
                 writeback_packet.fill_level = fill_level << 1;
@@ -253,11 +253,11 @@ void CACHE::handle_fill()
             up_way = ooo_cpu[fill_cpu].L2C.get_way(block[set][way].address, up_set);
 
             if (up_way < L2C_WAY && up_way >= 0 && flag == 0)
-            { 
+            {
               // cout << "inside sixth if" << endl;
 
               if (ooo_cpu[fill_cpu].L2C.block[up_set][up_way].dirty)
-              { 
+              {
                 // cout << "here3" << endl;
                 flag = 1;
                 writeback_packet.fill_level = fill_level << 1;
@@ -314,11 +314,11 @@ void CACHE::handle_fill()
             uint8_t flag = 0;
 
             if (up_way < L1I_WAY && up_way >= 0)
-            { 
+            {
               // cout << "inside 7th if" << endl;
 
               if (ooo_cpu[fill_cpu].L1I.block[up_set][up_way].dirty)
-              { 
+              {
                 // cout << "here4" << endl;
                 flag = 1;
                 writeback_packet.fill_level = fill_level << 1;
@@ -343,11 +343,11 @@ void CACHE::handle_fill()
             up_way = ooo_cpu[fill_cpu].L1D.get_way(block[set][way].address, up_set);
 
             if (up_way < L1D_WAY && up_way >= 0 && flag == 0)
-            { 
+            {
               // cout << "inside 8th if" << endl;
 
               if (ooo_cpu[fill_cpu].L1D.block[up_set][up_way].dirty)
-              { 
+              {
                 // cout << "here5" << endl;
                 flag = 1;
                 writeback_packet.fill_level = fill_level << 1;
@@ -394,7 +394,8 @@ void CACHE::handle_fill()
           }
         }
       }
-      else if (block[set][way].dirty && block[set][way].valid) {
+      else if (block[set][way].dirty && block[set][way].valid)
+      {
         ooo_cpu[fill_cpu].L2C.invalidate_entry(block[set][way].address);
         ooo_cpu[fill_cpu].L1I.invalidate_entry(block[set][way].address);
         ooo_cpu[fill_cpu].L1D.invalidate_entry(block[set][way].address);
@@ -616,7 +617,10 @@ void CACHE::handle_writeback()
       ACCESS[WQ.entry[index].type]++;
 
 #ifdef EXCLUSIVE
-      block[set][way].valid = 0;
+      if (cache_type == IS_L2C || cache_type == IS_LLC)
+      {
+        block[set][way].valid = 0;
+      }
 #endif
 
       // remove this entry from WQ
@@ -753,10 +757,14 @@ void CACHE::handle_writeback()
 
         uint8_t do_fill = 1;
 
+#ifdef EXCLUSIVE
+        if (block[set][way].valid && (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L2C))
+        {
+#else
         // is this dirty?
         if (block[set][way].dirty)
         {
-
+#endif
           // check if the lower level WQ has enough room to keep this writeback request
           if (lower_level)
           {
@@ -985,6 +993,13 @@ void CACHE::handle_read()
         // remove this entry from RQ
         RQ.remove_queue(&RQ.entry[index]);
         reads_available_this_cycle--;
+
+#ifdef EXCLUSIVE
+        if (cache_type == IS_L2C || cache_type == IS_LLC)
+        {
+          block[set][way].valid = 0;
+        }
+#endif
       }
       else
       { // read miss
