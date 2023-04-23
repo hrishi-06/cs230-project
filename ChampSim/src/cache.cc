@@ -615,6 +615,10 @@ void CACHE::handle_writeback()
       HIT[WQ.entry[index].type]++;
       ACCESS[WQ.entry[index].type]++;
 
+#ifdef EXCLUSIVE
+      block[set][way].valid = 0;
+#endif
+
       // remove this entry from WQ
       WQ.remove_queue(&WQ.entry[index]);
     }
