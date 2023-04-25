@@ -2,11 +2,11 @@ from multiprocessing import Process
 import os
 
 def run( LLC_repl:str, heirarchy:str, trace:str):
-    cmd = f"./run_champsim.sh bimodal-no-no-no-no-{LLC_repl}-1core-{heirarchy} 30 60 {trace}"
+    cmd = f"./run_champsim.sh bimodal-no-no-no-no-{LLC_repl}-1core-{heirarchy} 2 3 {trace}"
     os.system(cmd)
 
-LLC_repl_arr = ["lru", "lfu", "drrip", "random", "hawkeye", "fifo", "mfu"]
-# LLC_repl_arr = ["optgen"]
+# LLC_repl_arr = ["lru", "lfu", "drrip", "random", "hawkeye", "fifo", "mfu", "aged", "lrfu"]
+LLC_repl_arr = ["age", "lrfu"]
 heirarchy_arr = ["NINE", "INCLUSIVE", "EXCLUSIVE"]
 trace = "cc-6.trace.gz"
 
