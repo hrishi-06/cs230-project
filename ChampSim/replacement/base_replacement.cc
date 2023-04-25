@@ -99,7 +99,7 @@ uint32_t CACHE::mfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const 
 	uint32_t ret_way = -1;
 
 	for(uint32_t i=0; i<NUM_WAY; i++) {
-            int temp = block[set][i].lru;
+            uint32_t temp = block[set][i].lru;
             temp = temp/65536 + temp%65536;
 			if(temp > freq) {
 					freq = temp;
