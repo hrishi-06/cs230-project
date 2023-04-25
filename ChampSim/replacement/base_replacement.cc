@@ -155,26 +155,32 @@ uint32_t CACHE::mfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const 
 
 uint32_t CACHE::lrfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
 {
-	uint32_t way = 0;
-     for (way=0; way<NUM_WAY; way++) {
-         if (block[set][way].valid == false) {
+    uint32_t way = 0;
+    for (way = 0; way < NUM_WAY; way++)
+    {
+        if (block[set][way].valid == false)
+        {
             // cout << "way value returned : " << way << endl;
-             return way;
+            return way;
         }
-     }
+    }
     // cout << "no empty found\n";
-	uint32_t freq = INT_MAX;
-	uint32_t ret_way = -1;
-	for(int i = 0; i<NUM_WAY; i++) {
-        int temp = block[set][i].lru/65536;
-        temp += NUM_WAY - block[set][i].lru%65536;
-        if(temp < freq){
+    uint32_t freq = INT_MAX;
+    uint32_t ret_way = -1;
+
+    for (int i = 0; i < NUM_WAY; i++)
+    {
+        int temp = block[set][i].lru / 65536;
+        temp += NUM_WAY - block[set][i].lru % 65536;
+        if (temp < freq)
+        {
             freq = temp;
             ret_way = i;
         }
-	}
-    // cout << "the victim is : " << ret_way << endl;
-	return ret_way;
+
+        // cout << "the victim is : " << ret_way << endl;
+        return ret_way;
+    }
 }
 
 uint32_t CACHE::optgen_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
@@ -306,20 +312,24 @@ void CACHE::lfu_update(uint32_t set, uint32_t way, uint8_t hit)
 
 void CACHE::lrfu_update(uint32_t set, uint32_t way, uint8_t hit)
 {
-	if(! hit) {
-    	block[set][way].lru = 65536; // promote to the MRU position
-	}
-	else{
-		block[set][way].lru += 65536;
-	}
+    if (!hit)
+    {
+        block[set][way].lru = 65536; // promote to the MRU position
+    }
+    else
+    {
+        block[set][way].lru += 65536;
+    }
 
-    for (uint32_t i=0; i<NUM_WAY; i++) {
-        if ((block[set][i].lru) % 65536 < (block[set][way].lru) % 65536) {
+    for (uint32_t i = 0; i < NUM_WAY; i++)
+    {
+        if ((block[set][i].lru) % 65536 < (block[set][way].lru) % 65536)
+        {
             block[set][i].lru++;
         }
     }
-    block[set][way].lru = block[set][way].lru/65536; // promote to the MRU position
-    block[set][way].lru = block[set][way].lru*65536;
+    block[set][way].lru = block[set][way].lru / 65536; // promote to the MRU position
+    block[set][way].lru = block[set][way].lru * 65536;
 }
 
 void CACHE::age_update(uint32_t set, uint32_t way, uint8_t hit)
