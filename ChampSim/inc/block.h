@@ -28,6 +28,7 @@ class BLOCK {
 
     // replacement state
     uint32_t lru;
+    uint32_t age;
 
     BLOCK() {
         valid = 0;
@@ -48,6 +49,7 @@ class BLOCK {
         instr_id = 0;
 
         lru = 0;
+        age = 0;
     };
 };
 

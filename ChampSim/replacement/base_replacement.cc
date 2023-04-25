@@ -1,5 +1,8 @@
 #include "cache.h"
 
+#define AGE_THRESHOLD 13
+#define FREQ_THRESHOLD 5
+
 uint32_t CACHE::find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
 {
     // baseline LRU replacement policy for other caches
@@ -57,6 +60,41 @@ uint32_t CACHE::fifo_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const
     return way;
 }
 
+uint32_t CACHE::age_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
+{
+    uint32_t way = 0;
+
+    for (way = 0; way < NUM_WAY; way++)
+    {
+        if (block[set][way].valid == false)
+        {
+            return way;
+        }
+    }
+
+    for (way = 0; way < NUM_WAY; way++)
+    {
+        if (block[set][way].age > AGE_THRESHOLD && block[set][way].lru < FREQ_THRESHOLD)
+        {
+            return way;
+        }
+    }
+
+    uint32_t freq = INT_MAX;
+    uint32_t ret_way = -1;
+
+    for (uint32_t i = 0; i < NUM_WAY; i++)
+    {
+        if (block[set][i].lru < freq)
+        {
+            freq = block[set][i].lru;
+            ret_way = i;
+        }
+    }
+
+    return ret_way;
+}
+
 uint32_t CACHE::lfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
 {
     uint32_t way = 0;
@@ -86,28 +124,56 @@ uint32_t CACHE::lfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const 
 
 uint32_t CACHE::mfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
 {
-	uint32_t way = 0;
+    uint32_t way = 0;
     // cout << "endlggewgh" << endl;
+    for (way = 0; way < NUM_WAY; way++)
+    {
+        if (block[set][way].valid == false)
+        {
+            // cout << "empty block already exists" << endl;
+            return way;
+        }
+    }
+    // cout << "are we going to egt a seg fault???\n";
+    uint32_t freq = 0;
+    uint32_t ret_way = -1;
+
+    for (uint32_t i = 0; i < NUM_WAY; i++)
+    {
+        int temp = block[set][i].lru;
+        temp = temp / 65536 + temp % 65536;
+        if (temp > freq)
+        {
+            freq = temp;
+            // cout <<"return way of mfu in loop : " <<ret_way <<endl;
+            ret_way = i;
+        }
+    }
+    // cout <<"return way of mfu : " <<ret_way <<endl;
+    return ret_way;
+}
+
+uint32_t CACHE::lrfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
+{
+	uint32_t way = 0;
      for (way=0; way<NUM_WAY; way++) {
          if (block[set][way].valid == false) {
-            // cout << "empty block already exists" << endl;
+            // cout << "way value returned : " << way << endl;
              return way;
         }
      }
-	// cout << "are we going to egt a seg fault???\n";
-	uint32_t freq = 0;
+    // cout << "no empty found\n";
+	uint32_t freq = INT_MAX;
 	uint32_t ret_way = -1;
-
-	for(uint32_t i=0; i<NUM_WAY; i++) {
-            int temp = block[set][i].lru;
-            temp = temp/65536 + temp%65536;
-			if(temp > freq) {
-					freq = temp;
-                    // cout <<"return way of mfu in loop : " <<ret_way <<endl; 
-					ret_way = i;
-			}
+	for(int i = 0; i<NUM_WAY; i++) {
+        int temp = block[set][i].lru/65536;
+        temp += NUM_WAY - block[set][i].lru%65536;
+        if(temp < freq){
+            freq = temp;
+            ret_way = i;
+        }
 	}
-    // cout <<"return way of mfu : " <<ret_way <<endl; 
+    // cout << "the victim is : " << ret_way << endl;
 	return ret_way;
 }
 
@@ -238,7 +304,7 @@ void CACHE::lfu_update(uint32_t set, uint32_t way, uint8_t hit)
     }
 }
 
-void CACHE::mfu_update(uint32_t set, uint32_t way, uint8_t hit)
+void CACHE::lrfu_update(uint32_t set, uint32_t way, uint8_t hit)
 {
 	if(! hit) {
     	block[set][way].lru = 65536; // promote to the MRU position
@@ -248,12 +314,66 @@ void CACHE::mfu_update(uint32_t set, uint32_t way, uint8_t hit)
 	}
 
     for (uint32_t i=0; i<NUM_WAY; i++) {
-        if ((block[set][i].lru) % 65536 < (block[set][way].lru)%65536) {
+        if ((block[set][i].lru) % 65536 < (block[set][way].lru) % 65536) {
             block[set][i].lru++;
         }
     }
     block[set][way].lru = block[set][way].lru/65536; // promote to the MRU position
     block[set][way].lru = block[set][way].lru*65536;
+}
+
+void CACHE::age_update(uint32_t set, uint32_t way, uint8_t hit)
+{
+    if (!hit)
+    {
+        block[set][way].lru = 0; // promote to the MRU position
+        block[set][way].age = 0;
+    }
+    else
+    {
+        block[set][way].lru += 1;
+    }
+
+    // for (uint32_t j = 0; j < NUM_SET; ++j)
+    // {
+    //     for (uint32_t i = 0; i < NUM_WAY; ++i)
+    //     {
+    //         if (block[j][i].valid)
+    //         {
+    //             block[j][i].age++;
+    //         }
+    //     }
+    // }
+
+    for (uint32_t i = 0; i < NUM_WAY; ++i)
+    {
+        if (block[set][i].valid)
+        {
+            block[set][i].age++;
+        }
+    }
+}
+
+void CACHE::mfu_update(uint32_t set, uint32_t way, uint8_t hit)
+{
+    if (!hit)
+    {
+        block[set][way].lru = 65536; // promote to the MRU position
+    }
+    else
+    {
+        block[set][way].lru += 65536;
+    }
+
+    for (uint32_t i = 0; i < NUM_WAY; i++)
+    {
+        if ((block[set][i].lru) % 65536 < (block[set][way].lru) % 65536)
+        {
+            block[set][i].lru++;
+        }
+    }
+    block[set][way].lru = block[set][way].lru / 65536; // promote to the MRU position
+    block[set][way].lru = block[set][way].lru * 65536;
 }
 
 void CACHE::optgen_update(uint32_t set, uint32_t way, uint64_t addr, uint64_t ip, uint8_t xhit, uint64_t ev_addr)
@@ -368,7 +488,7 @@ void CACHE::optgen_update(uint32_t set, uint32_t way, uint64_t addr, uint64_t ip
         else
         {
             block[set][way].lru = 7;
-            
+
             for (uint32_t i = 0; i < NUM_WAY; ++i)
             {
                 if (block[set][i].lru < 7)

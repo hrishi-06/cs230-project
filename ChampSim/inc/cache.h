@@ -70,8 +70,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L2C_LATENCY 10  // 4/5 (L1I or L1D) + 10 = 14/15 cycles
 
 // LAST LEVEL CACHE
-#define LLC_SET NUM_CPUS*2048 //32768 8192 2048 1024
-#define LLC_WAY 64 // 32
+#define LLC_SET NUM_CPUS*4096 //32768 8192 2048 1024
+#define LLC_WAY 32 // 32
 #define LLC_RQ_SIZE NUM_CPUS*L2C_MSHR_SIZE //48
 #define LLC_WQ_SIZE NUM_CPUS*L2C_MSHR_SIZE //48
 #define LLC_PQ_SIZE NUM_CPUS*32
@@ -199,7 +199,9 @@ class CACHE : public MEMORY {
          lru_update(uint32_t set, uint32_t way),
 	 fifo_update(uint32_t set, uint32_t way),
 	 lfu_update(uint32_t set, uint32_t way, uint8_t hit),
+	 age_update(uint32_t set, uint32_t way, uint8_t hit),
      mfu_update(uint32_t set, uint32_t way, uint8_t hit),
+     lrfu_update(uint32_t set, uint32_t way, uint8_t hit),
      optgen_update(uint32_t set, uint32_t way, uint64_t addr, uint64_t ip, uint8_t hit, uint64_t ev_addr),
          fill_cache(uint32_t set, uint32_t way, PACKET *packet),
          replacement_final_stats(),
@@ -233,6 +235,8 @@ class CACHE : public MEMORY {
 	     lfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
 	     mfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
 	     optgen_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
+	     age_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
+        lrfu_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
          seq_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
          fifo_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type);
 };

@@ -8,7 +8,7 @@ def run( LLC_repl:str, heirarchy:str, trace:str):
 LLC_repl_arr = ["lru", "lfu", "drrip", "random", "hawkeye", "fifo", "mfu"]
 # LLC_repl_arr = ["optgen"]
 heirarchy_arr = ["NINE", "INCLUSIVE", "EXCLUSIVE"]
-trace = "bc-5.trace.gz"
+trace = "cc-6.trace.gz"
 
 if __name__ == "__main__": # Here
 
