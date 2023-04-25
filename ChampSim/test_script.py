@@ -5,11 +5,17 @@ def run( LLC_repl:str, heirarchy:str, trace:str):
     cmd = f"./run_champsim.sh bimodal-no-no-no-no-{LLC_repl}-1core-{heirarchy} 30 60 {trace}"
     os.system(cmd)
 
-LLC_repl_arr = ["lru", "lfu", "drrip"]
+LLC_repl_arr = ["lru", "lfu", "drrip", "random", "hawkeye", "fifo", "mfu"]
+# LLC_repl_arr = ["optgen"]
 heirarchy_arr = ["NINE", "INCLUSIVE", "EXCLUSIVE"]
-trace = "cc-6.trace.gz"
+trace = "bc-5.trace.gz"
 
 if __name__ == "__main__": # Here
+
+    for LLC_repl in LLC_repl_arr:
+        for heirarchy in heirarchy_arr:
+            os.system(f'./build_champsim.sh bimodal no no no no {LLC_repl} 1 {heirarchy}')
+
     process_list = []
 
     for LLC_repl in LLC_repl_arr:
